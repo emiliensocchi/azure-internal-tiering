@@ -1,0 +1,9 @@
+[
+    {
+        "tier": "3",
+        "id": "7f922060-b27d-44fd-991a-4861f41a5982",
+        "assetType": "Custom",
+        "assetName": "Role assignment reader",
+        "worstCaseScenario": "Can read Azure scopes, role assignments and definitions. Provides no access to the control or data plane of Azure resources."
+    }
+]

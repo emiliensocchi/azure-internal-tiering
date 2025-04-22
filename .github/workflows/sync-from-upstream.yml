@@ -1,0 +1,23 @@
+name: Sync from upstream
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "00 01 * * *"  # Every day at 1:00 AM UTC
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  sync_from_upstream:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@1fb4a623cfbc661771f7005e00e2cf74acf32037   # v4.2.2
+
+    - name: Run AzTierSyncer
+      uses: ./.github/actions/sync-from-upstream
+      with:
+        user_email: 'azure-tiering-integration-robot@gmail.com'
+        user_name: 'azure-tiering-integration-robot'

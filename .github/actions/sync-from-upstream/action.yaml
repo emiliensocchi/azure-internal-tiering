@@ -1,0 +1,15 @@
+name: 'AzTierSyncer'
+description: 'Synchronizes administrative assets from the upstream Azure administrative tiering project'
+inputs:
+  user_email:
+    description: 'Email for the git commit'
+    required: true
+  user_name:
+    description: 'Github username for the git commit'
+    required: true
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.user-email }}
+    - ${{ inputs.user-name }}
