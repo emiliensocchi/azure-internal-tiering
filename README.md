@@ -161,9 +161,13 @@ Once this project has been forked and configured with an Entra tenant using the 
 
     ![](./pictures/01_first-run_sync-from-upstream.png)
 
-2. Workflow: "Detect untiered assets"
+2. Workflow: "Convert JSON to Markdown"
 
-    ![](./pictures/02_first-detect-untiered-assets.png)
+    ![](./pictures/02_first-run_convert-json-to-md.png)
+
+3. Workflow: "Detect untiered assets"
+
+    ![](./pictures/03_first-run_detect-untiered-assets.png)
 
 At this point, the following should be in place:
 
