@@ -64,14 +64,14 @@ def convert_azure_json_to_markdown(azure_json_file, azure_markdown_file):
         tier_2_assets = []
         tier_3_assets = []
         
-        with open(azure_json_file, 'r') as file:
+        with open(azure_json_file, 'r', encoding = 'utf-8') as file:
             file_content = json.load(file)
             tier_0_assets = [asset for asset in file_content if asset['tier'] == '0']
             tier_1_assets = [asset for asset in file_content if asset['tier'] == '1']
             tier_2_assets = [asset for asset in file_content if asset['tier'] == '2']
             tier_3_assets = [asset for asset in file_content if asset['tier'] == '3']
 
-        with open(azure_markdown_file, 'r+') as file:
+        with open(azure_markdown_file, 'r+', encoding = 'utf-8') as file:
             file_content = file.read()
             splitter = '##' 
             splitted_content = file_content.split(splitter)
@@ -234,13 +234,13 @@ def convert_entra_json_to_markdown(entra_json_file, entra_markdown_file):
         tier_1_assets = []
         tier_2_assets = []
         
-        with open(entra_json_file, 'r') as file:
+        with open(entra_json_file, 'r', encoding = 'utf-8') as file:
             file_content = json.load(file)
             tier_0_assets = [asset for asset in file_content if asset['tier'] == '0']
             tier_1_assets = [asset for asset in file_content if asset['tier'] == '1']
             tier_2_assets = [asset for asset in file_content if asset['tier'] == '2']
 
-        with open(entra_markdown_file, 'r+') as file:
+        with open(entra_markdown_file, 'r+', encoding = 'utf-8') as file:
             file_content = file.read()
             splitter = '##' 
             splitted_content = file_content.split(splitter)
@@ -370,13 +370,13 @@ def convert_msgraph_json_to_markdown(msgraph_json_file, msgraph_markdown_file):
         tier_1_assets = []
         tier_2_assets = []
         
-        with open(msgraph_json_file, 'r') as file:
+        with open(msgraph_json_file, 'r', encoding = 'utf-8') as file:
             file_content = json.load(file)
             tier_0_assets = [asset for asset in file_content if asset['tier'] == '0']
             tier_1_assets = [asset for asset in file_content if asset['tier'] == '1']
             tier_2_assets = [asset for asset in file_content if asset['tier'] == '2']
 
-        with open(msgraph_markdown_file, 'r+') as file:
+        with open(msgraph_markdown_file, 'r+', encoding = 'utf-8') as file:
             file_content = file.read()
             splitter = '##' 
             splitted_content = file_content.split(splitter)

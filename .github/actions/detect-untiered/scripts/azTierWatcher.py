@@ -542,13 +542,13 @@ def read_json_file(json_file):
     """
     try:
         if os.path.exists(json_file):
-            with open(json_file, 'r+') as file:
+            with open(json_file, 'r+', encoding = 'utf-8') as file:
                 file_content = file.read()
                 
                 if file_content:
                     return json.loads(file_content)
     
-        with open(json_file, 'w+') as file:
+        with open(json_file, 'w+', encoding = 'utf-8') as file:
             file.write('[]')
             file.seek(0)
             return json.load(file)
@@ -571,7 +571,7 @@ def update_tiered_assets(tiered_json_file, tiered_assets):
 
     """
     try:
-        with open(tiered_json_file, 'w') as file:
+        with open(tiered_json_file, 'w', encoding = 'utf-8') as file:
             file.write(json.dumps(tiered_assets, indent = 4))
     except FileNotFoundError:
         print('FATAL ERROR - The tiered file could not be updated.')
@@ -593,7 +593,7 @@ def update_untiered_assets(untiered_md_file, added_assets):
         page_metadata_content = ''
         additions_content = ''
 
-        with open(untiered_md_file, 'r') as file:
+        with open(untiered_md_file, 'r', encoding = 'utf-8') as file:
             file_content = file.read()
             splitter = '##' 
             splitted_content = file_content.split(splitter)
@@ -624,7 +624,7 @@ def update_untiered_assets(untiered_md_file, added_assets):
             are_new_assets_untiered = True
             updated_additions_content = additions_metadata_content + new_additions_content + current_additions_content
             updated_content = page_metadata_content + updated_additions_content
-            with open(untiered_md_file, 'w') as file:
+            with open(untiered_md_file, 'w', encoding = 'utf-8') as file:
                 file.write(updated_content)
 
         return are_new_assets_untiered
@@ -680,11 +680,6 @@ if __name__ == "__main__":
             'description': custom_azure_role_definition['properties']['description'],
             'link': f"{arm_role_template_base_uri}{custom_azure_role_definition['name']}?api-version={arm_role_template_api_version}"   
         })
-
-    # WHAT IF YOU ARE NOT USING PIM!?!?!?!?!??!?!?!?!!?
-    # Test if eligibleAssignment endpoint is available
-    # If not, check only normal role assignments
-
 
     # Get built-in Azure roles in use
     azure_roles = []

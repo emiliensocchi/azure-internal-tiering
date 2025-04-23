@@ -197,13 +197,13 @@ def read_tiered_json_file(tiered_json_file):
     """
     try:
         if os.path.exists(tiered_json_file):
-            with open(tiered_json_file, 'r') as file:
+            with open(tiered_json_file, 'r', encoding = 'utf-8') as file:
                 file_content = file.read()
 
                 if file_content:
                     return json.loads(file_content)
 
-        with open(tiered_json_file, 'w+') as file:
+        with open(tiered_json_file, 'w+', encoding = 'utf-8') as file:
             file.write('[]')
             file.seek(0)
             return json.load(file)
@@ -223,7 +223,7 @@ def update_tiered_assets(tiered_json_file, tiered_assets):
 
     """
     try:
-        with open(tiered_json_file, 'w') as file:
+        with open(tiered_json_file, 'w', encoding = 'utf-8') as file:
             file.write(json.dumps(tiered_assets, indent = 4))
     except FileNotFoundError:
         print('FATAL ERROR - The tiered file could not be updated.')
@@ -357,7 +357,7 @@ if __name__ == "__main__":
     # Get project configuration from local config file
     project_config = {}
     try:
-        with open(config_file, 'r') as file:
+        with open(config_file, 'r', encoding = 'utf-8') as file:
             project_config = json.load(file)
     except Exception:
         print('FATAL ERROR - The config JSON file could not be retrieved.')
