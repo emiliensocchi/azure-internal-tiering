@@ -745,7 +745,7 @@ if __name__ == "__main__":
     have_roles_been_added = update_untiered_assets(azure_roles_untiered_file, added_azure_roles)
 
     if have_roles_been_added:
-        print ('➕ Built-in Azure roles: additions have been detected')
+        print ('➕ Azure roles: additions have been detected')
     if have_custom_roles_been_removed:
         print ('❌ Custom Azure roles: removals have been detected and applied')
     if not have_roles_been_added and not have_custom_roles_been_removed:
