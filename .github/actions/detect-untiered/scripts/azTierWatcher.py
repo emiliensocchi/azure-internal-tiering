@@ -42,6 +42,9 @@ def send_batch_request_to_arm(token, batch_requests):
     """
         Sends the passed batch requests to ARM, while handling pagination and throttling to return a complete response.
 
+        Note:
+            The batch requests are limited to 500 requests per batch, as per the ARM API documentation.
+        
         Args:
             token(str): a valid access token for ARM
             batch_requests(list(dict)): list of batch requests to send to ARM
@@ -50,49 +53,54 @@ def send_batch_request_to_arm(token, batch_requests):
             list(dict): list of responses from ARM
     
     """
-    endpoint = 'https://management.azure.com/batch?api-version=2021-04-01'
-    headers = {'Authorization': f"Bearer {token}"}
-    body = { 
-        'requests': batch_requests
-    }
+    batch_request_limit = 500
+    limited_batch_requests = [batch_requests[i:i + batch_request_limit] for i in range(0, len(batch_requests), batch_request_limit)]
+    complete_response = []
 
-    http_response = requests.post(endpoint, headers = headers, json = body)
+    for limited_batch_request in limited_batch_requests:
+        endpoint = 'https://management.azure.com/batch?api-version=2021-04-01'
+        headers = {'Authorization': f"Bearer {token}"}
+        body = { 
+            'requests': limited_batch_request
+        }
 
-    if http_response.status_code != 200 and http_response.status_code != 202:
-        return None
-
-    redirect_header = 'Location'
-    retry_header = 'Retry-After'
-
-    if redirect_header not in http_response.headers:
-        # The response is not paginated
-        responses = http_response.json()['responses']
-        return responses
-
-    # The response is paginated
-    #retry_after_x_seconds = http_response.headers.get(retry_header)
-    #time.sleep(retry_after_x_seconds)
-    time.sleep(5)
-    endpoint = http_response.headers.get(redirect_header)
-    headers = {'Authorization': f"Bearer {token}"}
-    http_response = requests.get(endpoint, headers = headers)
-    
-    if http_response.status_code != 200 and http_response.status_code != 202:
-        return None
-
-    paginated_response = http_response.json()['value']
-    complete_response = paginated_response
-    next_page = http_response.json()['nextLink'] if 'nextLink' in http_response.json() else ''
-
-    while next_page:
-        http_response = requests.get(next_page, headers = headers)
+        http_response = requests.post(endpoint, headers = headers, json = body)
 
         if http_response.status_code != 200 and http_response.status_code != 202:
             return None
 
+        redirect_header = 'Location'
+        retry_header = 'Retry-After'
+
+        if redirect_header not in http_response.headers:
+            # The response is not paginated
+            responses = http_response.json()['responses']
+            return responses
+
+        # The response is paginated
+        #retry_after_x_seconds = http_response.headers.get(retry_header)
+        #time.sleep(retry_after_x_seconds)
+        time.sleep(5)
+        endpoint = http_response.headers.get(redirect_header)
+        headers = {'Authorization': f"Bearer {token}"}
+        http_response = requests.get(endpoint, headers = headers)
+        
+        if http_response.status_code != 200 and http_response.status_code != 202:
+            return None
+
         paginated_response = http_response.json()['value']
+        complete_response = paginated_response
         next_page = http_response.json()['nextLink'] if 'nextLink' in http_response.json() else ''
-        complete_response += paginated_response
+
+        while next_page:
+            http_response = requests.get(next_page, headers = headers)
+
+            if http_response.status_code != 200 and http_response.status_code != 202:
+                return None
+
+            paginated_response = http_response.json()['value']
+            next_page = http_response.json()['nextLink'] if 'nextLink' in http_response.json() else ''
+            complete_response += paginated_response
 
     return complete_response
 
@@ -191,7 +199,7 @@ def is_pim_enabled_for_arm(token):
             bool: True if PIM is enabled, False otherwise
 
     """
-    endpoint = 'https://management.azure.com/providers/Microsoft.Authorization/roleEligibilityScheduleInstances?api-version=2020-10-01'
+    endpoint = 'https://management.azure.com/providers/Microsoft.Authorization/roleEligibilityScheduleInstances?$filter=asTarget()&api-version=2020-10-01'
     headers = {'Authorization': f"Bearer {token}"}
     response = requests.get(endpoint, headers = headers)
 
@@ -344,7 +352,7 @@ def get_all_azure_role_definitions_from_arm(token, role_definition_ids):
         print('FATAL ERROR - The Azure role definitions could not be retrieved from ARM.')
         exit()
  
-    role_definition_responses = [response['content'] for response in http_responses]
+    role_definition_responses = [response['content'] for response in http_responses if response['httpStatusCode'] == 200]
 
     for role_definition_response in role_definition_responses:
         all_role_definitions.append({
@@ -542,13 +550,13 @@ def read_json_file(json_file):
     """
     try:
         if os.path.exists(json_file):
-            with open(json_file, 'r+', encoding = 'utf-8') as file:
+            with open(json_file, 'r+') as file:
                 file_content = file.read()
                 
                 if file_content:
                     return json.loads(file_content)
     
-        with open(json_file, 'w+', encoding = 'utf-8') as file:
+        with open(json_file, 'w+') as file:
             file.write('[]')
             file.seek(0)
             return json.load(file)
@@ -571,7 +579,7 @@ def update_tiered_assets(tiered_json_file, tiered_assets):
 
     """
     try:
-        with open(tiered_json_file, 'w', encoding = 'utf-8') as file:
+        with open(tiered_json_file, 'w') as file:
             file.write(json.dumps(tiered_assets, indent = 4))
     except FileNotFoundError:
         print('FATAL ERROR - The tiered file could not be updated.')
@@ -668,26 +676,12 @@ if __name__ == "__main__":
     tiered_azure_roles = read_json_file(azure_roles_tier_file)
     tiered_entra_roles = read_json_file(entra_roles_tier_file)
 
-    # Get custom Azure roles
-    custom_azure_roles = []
-    custom_azure_role_definitions = get_custom_azure_role_definitions_from_arm(arm_access_token)
-
-    for custom_azure_role_definition in custom_azure_role_definitions:
-        custom_azure_roles.append({
-            'id': custom_azure_role_definition['name'],
-            'type': 'Custom',
-            'name': custom_azure_role_definition['properties']['roleName'],
-            'description': custom_azure_role_definition['properties']['description'],
-            'link': f"{arm_role_template_base_uri}{custom_azure_role_definition['name']}?api-version={arm_role_template_api_version}"   
-        })
-
     # Get built-in Azure roles in use
-    azure_roles = []
+    built_in_azure_roles_in_use = []
     is_pim_enabled = is_pim_enabled_for_arm(arm_access_token)
 
     if is_pim_enabled:
         # Get active + eligible roles
-        built_in_azure_roles_in_use = []
         azure_scope_resource_ids = get_resource_id_of_all_scopes_from_arm(arm_access_token)
         active_azure_role_ids = get_role_definition_id_of_active_azure_roles_within_scope_from_arm(arm_access_token, azure_scope_resource_ids)
         eligible_azure_role_ids = get_role_definition_id_of_eligible_azure_roles_within_scope_from_arm(arm_access_token, azure_scope_resource_ids)
@@ -703,10 +697,6 @@ if __name__ == "__main__":
                 'description': built_in_azure_role_definition['roleDescription'],
                 'link': f"{arm_role_template_base_uri}{built_in_azure_role_definition['roleId']}?api-version={arm_role_template_api_version}"   
             })
-
-        # Merge all custom + built-in Azure roles in use
-        azure_roles = built_in_azure_roles_in_use + custom_azure_roles
-
     else:
         # Get permanently assigned roles
         azure_scope_resource_ids = get_resource_id_of_all_scopes_from_arm(arm_access_token)
@@ -715,7 +705,7 @@ if __name__ == "__main__":
 
         for azure_role_definition in all_azure_role_definitions_in_use:
             azure_role_type = 'Built-in' if azure_role_definition['roleType'] == 'BuiltInRole' else 'Custom'
-            azure_roles.append({
+            built_in_azure_roles_in_use.append({
                 'id': azure_role_definition['roleId'],
                 'type': azure_role_type,
                 'name': azure_role_definition['roleName'],
@@ -723,14 +713,31 @@ if __name__ == "__main__":
                 'link': f"{arm_role_template_base_uri}{azure_role_definition['roleId']}?api-version={arm_role_template_api_version}"   
             })
 
+    # Get custom Azure roles
+    custom_azure_roles = []
+    custom_azure_role_definitions = get_custom_azure_role_definitions_from_arm(arm_access_token)
+
+    for custom_azure_role_definition in custom_azure_role_definitions:
+        custom_azure_roles.append({
+            'id': custom_azure_role_definition['name'],
+            'type': 'Custom',
+            'name': custom_azure_role_definition['properties']['roleName'],
+            'description': custom_azure_role_definition['properties']['description'],
+            'link': f"{arm_role_template_base_uri}{custom_azure_role_definition['name']}?api-version={arm_role_template_api_version}"   
+        })
+
+    # Merge all custom + built-in Azure roles in use
+    azure_roles = built_in_azure_roles_in_use + custom_azure_roles
+
     # Find untiered Azure roles
     added_azure_roles = sorted(find_added_assets(azure_roles, tiered_azure_roles), key=lambda x: x['name'])
     removed_azure_roles = find_removed_assets(azure_roles, tiered_azure_roles)
-    have_roles_been_removed = True if removed_azure_roles else False
+    removed_custom_azure_roles = [role for role in removed_azure_roles if role['assetType'] == 'Custom']
+    have_custom_roles_been_removed = True if removed_custom_azure_roles else False
 
-    if have_roles_been_removed:
-        for removed_role in removed_azure_roles:
-            removed_role_id = removed_role['id']
+    if have_custom_roles_been_removed:
+        for removed_custom_role in removed_custom_azure_roles:
+            removed_role_id = removed_custom_role['id']
             tiered_azure_roles = [role for role in tiered_azure_roles if role['id'] != removed_role_id]
 
         update_tiered_assets(azure_roles_tier_file, tiered_azure_roles)
@@ -738,10 +745,10 @@ if __name__ == "__main__":
     have_roles_been_added = update_untiered_assets(azure_roles_untiered_file, added_azure_roles)
 
     if have_roles_been_added:
-        print ('➕ Azure roles: additions have been detected')
-    if have_roles_been_removed:
-        print ('❌ Azure roles: removals have been detected and applied')
-    if not have_roles_been_added and not have_roles_been_removed:
+        print ('➕ Built-in Azure roles: additions have been detected')
+    if have_custom_roles_been_removed:
+        print ('❌ Custom Azure roles: removals have been detected and applied')
+    if not have_roles_been_added and not have_custom_roles_been_removed:
         print ('➖ Azure roles: no changes')
 
     # Get all custom Entra roles
