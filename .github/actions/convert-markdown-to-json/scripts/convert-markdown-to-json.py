@@ -434,7 +434,7 @@ if __name__ == "__main__":
     app_permissions_dir = root_dir + 'Microsoft Graph application permissions'
     
     # Set local Markdown files
-    azure_roles_markdown_file = f"{entra_dir}/README.md"
+    azure_roles_markdown_file = f"{azure_dir}/README.md"
     entra_roles_markdown_file = f"{entra_dir}/README.md"
     app_permissions_markdown_file = f"{app_permissions_dir}/README.md"
 
