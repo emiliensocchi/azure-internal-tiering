@@ -7,9 +7,9 @@ Create **internal** tier models for Azure, Entra and Microsoft Graph administrat
 
 | Available tier models |
 |---|
-| ☁️ [Azure roles tiering](Azure%20roles/README.md) |
-| 👤 [Entra roles tiering](Entra%20roles/README.md) |
-| 🤖 [MS Graph application permissions tiering](Microsoft%20Graph%20application%20permissions/README.md) |
+| ☁️ [Azure roles tiering](Azure%20roles) |
+| 👤 [Entra roles tiering](Entra%20roles) |
+| 🤖 [MS Graph application permissions tiering](Microsoft%20Graph%20application%20permissions) |
 
 
 ## 🎯 Objective
