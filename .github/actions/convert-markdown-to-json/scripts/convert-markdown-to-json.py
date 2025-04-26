@@ -89,7 +89,6 @@ def send_batch_request_to_arm(token, batch_requests):
 
         paginated_response = http_response.json()['value']
         complete_response = paginated_response
-        test = http_response.json()
         next_page = http_response.json()['nextLink'] if 'nextLink' in http_response.json() else ''
 
         while next_page:
