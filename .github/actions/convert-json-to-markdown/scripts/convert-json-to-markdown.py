@@ -57,7 +57,6 @@ def convert_azure_json_to_markdown(azure_json_file, azure_markdown_file):
 
     """
     try:
-        documentation_uri = 'https://learn.microsoft.com/en-us/azure/role-based-access-control/all-roles'
         upstream_uri = 'https://github.com/emiliensocchi/azure-tiering/tree/main/Azure%20roles'
         tier_0_assets = []
         tier_1_assets = []
@@ -101,11 +100,10 @@ def convert_azure_json_to_markdown(azure_json_file, azure_markdown_file):
             for tier_0_asset in tier_0_assets:
                 # Build hyperlinks
                 asset_name_anchor = tier_0_asset['assetName'].lower().replace(' ', '-')
-                documentation_link = f"{documentation_uri}#{asset_name_anchor}"
                 upstream_link = f"{upstream_uri}#{asset_name_anchor}"
                 # Build Markdown content
-                name = f"[{tier_0_asset['assetName']}]({documentation_link})"
-                type = f"[{tier_0_asset['assetType']}]({upstream_link})" if tier_0_asset['assetType'] == 'Built-in' else {tier_0_asset['assetType']}
+                name = f"[{tier_0_asset['assetName']}]({upstream_link})" if tier_0_asset['assetType'] == 'Built-in' else {tier_0_asset['assetName']}
+                type = tier_0_asset['assetType']
                 shortest_path = tier_0_asset['shortestPath']
                 example = tier_0_asset['example']
                 # Build line
@@ -133,11 +131,10 @@ def convert_azure_json_to_markdown(azure_json_file, azure_markdown_file):
             for tier_1_asset in tier_1_assets:
                 # Build hyperlink
                 asset_name_anchor = tier_1_asset['assetName'].lower().replace(' ', '-')
-                documentation_link = f"{documentation_uri}#{asset_name_anchor}"
                 upstream_link = f"{upstream_uri}#{asset_name_anchor}"
                 # Build Markdown content
-                name = f"[{tier_1_asset['assetName']}]({documentation_link})"
-                type = f"[{tier_1_asset['assetType']}]({upstream_link})" if tier_1_asset['assetType'] == 'Built-in' else {tier_1_asset['assetType']}
+                name = f"[{tier_1_asset['assetName']}]({upstream_link})" if tier_1_asset['assetType'] == 'Built-in' else {tier_1_asset['assetName']}
+                type = tier_1_asset['assetType'] 
                 shortest_path = tier_1_asset['shortestPath']
                 example = tier_1_asset['example']
                 # Build line
@@ -165,11 +162,10 @@ def convert_azure_json_to_markdown(azure_json_file, azure_markdown_file):
             for tier_2_asset in tier_2_assets:
                 # Build hyperlink
                 asset_name_anchor = tier_2_asset['assetName'].lower().replace(' ', '-')
-                documentation_link = f"{documentation_uri}#{asset_name_anchor}"
                 upstream_link = f"{upstream_uri}#{asset_name_anchor}"
                 # Build Markdown content
-                name = f"[{tier_2_asset['assetName']}]({documentation_link})"
-                type = f"[{tier_2_asset['assetType']}]({upstream_link})" if tier_2_asset['assetType'] == 'Built-in' else {tier_2_asset['assetType']}
+                name = f"[{tier_2_asset['assetName']}]({upstream_link})" if tier_2_asset['assetType'] == 'Built-in' else {tier_2_asset['assetName']}
+                type = tier_2_asset['assetType']
                 worst_case_scenario = tier_2_asset['worstCaseScenario']
                 # Build line
                 line = f"\n| {name} | {type} | {worst_case_scenario} |"
@@ -193,11 +189,10 @@ def convert_azure_json_to_markdown(azure_json_file, azure_markdown_file):
             for tier_3_asset in tier_3_assets:
                 # Build hyperlink
                 asset_name_anchor = tier_3_asset['assetName'].lower().replace(' ', '-')
-                documentation_link = f"{documentation_uri}#{asset_name_anchor}"
                 upstream_link = f"{upstream_uri}#{asset_name_anchor}"
                 # Build Markdown content
-                name = f"[{tier_3_asset['assetName']}]({documentation_link})"
-                type = f"[{tier_3_asset['assetType']}]({upstream_link})" if tier_3_asset['assetType'] == 'Built-in' else {tier_3_asset['assetType']}
+                name = f"[{tier_3_asset['assetName']}]({upstream_link})" if tier_3_asset['assetType'] == 'Built-in' else {tier_3_asset['assetName']}
+                type = tier_3_asset['assetType']
                 worst_case_scenario = tier_3_asset['worstCaseScenario']
                 # Build line
                 line = f"\n| {name} | {type} | {worst_case_scenario} |"
@@ -228,7 +223,6 @@ def convert_entra_json_to_markdown(entra_json_file, entra_markdown_file):
 
     """
     try:
-        documentation_uri = 'https://learn.microsoft.com/en-us/entra/identity/role-based-access-control/permissions-reference'
         upstream_uri = 'https://github.com/emiliensocchi/azure-tiering/tree/main/Entra%20roles'
         tier_0_assets = []
         tier_1_assets = []
@@ -269,11 +263,10 @@ def convert_entra_json_to_markdown(entra_json_file, entra_markdown_file):
             for tier_0_asset in tier_0_assets:
                 # Build hyperlink
                 asset_name_anchor = tier_0_asset['assetName'].lower().replace(' ', '-')
-                documentation_link = f"{documentation_uri}#{asset_name_anchor}"
                 upstream_link = f"{upstream_uri}#{asset_name_anchor}"
                 # Build Markdown content
-                name = f"[{tier_0_asset['assetName']}]({documentation_link})"
-                type = f"[{tier_0_asset['assetType']}]({upstream_link})" if tier_0_asset['assetType'] == 'Built-in' else {tier_0_asset['assetType']}
+                name = f"[{tier_0_asset['assetName']}]({upstream_link})" if tier_0_asset['assetType'] == 'Built-in' else {tier_0_asset['assetName']}
+                type = tier_0_asset['assetType']
                 path_type = tier_0_asset['pathType']
                 shortest_path = tier_0_asset['shortestPath']
                 example = tier_0_asset['example']
@@ -302,11 +295,10 @@ def convert_entra_json_to_markdown(entra_json_file, entra_markdown_file):
             for tier_1_asset in tier_1_assets:
                 # Build hyperlink
                 asset_name_anchor = tier_1_asset['assetName'].lower().replace(' ', '-')
-                documentation_link = f"{documentation_uri}#{asset_name_anchor}"
                 upstream_link = f"{upstream_uri}#{asset_name_anchor}"
                 # Build Markdown content
-                name = f"[{tier_1_asset['assetName']}]({documentation_link})"
-                type = f"[{tier_1_asset['assetType']}]({upstream_link})" if tier_1_asset['assetType'] == 'Built-in' else {tier_1_asset['assetType']}
+                name = f"[{tier_1_asset['assetName']}]({upstream_link})" if tier_1_asset['assetType'] == 'Built-in' else {tier_1_asset['assetName']}
+                type = tier_1_asset['assetType']
                 provides_full_access_to = tier_1_asset['providesFullAccessTo']
                 # Build line
                 line = f"\n| {name} | {type} | {provides_full_access_to} |"
@@ -330,11 +322,10 @@ def convert_entra_json_to_markdown(entra_json_file, entra_markdown_file):
             for tier_2_asset in tier_2_assets:
                 # Build hyperlink
                 asset_name_anchor = tier_2_asset['assetName'].lower().replace(' ', '-')
-                documentation_link = f"{documentation_uri}#{asset_name_anchor}"
                 upstream_link = f"{upstream_uri}#{asset_name_anchor}"
                 # Build Markdown content
-                name = f"[{tier_2_asset['assetName']}]({documentation_link})"
-                type = f"[{tier_2_asset['assetType']}]({upstream_link})" if tier_2_asset['assetType'] == 'Built-in' else {tier_2_asset['assetType']}
+                name = f"[{tier_2_asset['assetName']}]({upstream_link})"if tier_2_asset['assetType'] == 'Built-in' else {tier_2_asset['assetName']}
+                type = tier_2_asset['assetType']
                 # Build line
                 line = f"\n| {name} | {type} |"
                 new_tier_2_content += line
@@ -364,7 +355,6 @@ def convert_msgraph_json_to_markdown(msgraph_json_file, msgraph_markdown_file):
 
     """
     try:
-        documentation_uri = 'https://learn.microsoft.com/en-us/graph/permissions-reference'
         upstream_uri = 'https://github.com/emiliensocchi/azure-tiering/tree/main/Microsoft%20Graph%20application%20permissions'
         tier_0_assets = []
         tier_1_assets = []
@@ -405,11 +395,10 @@ def convert_msgraph_json_to_markdown(msgraph_json_file, msgraph_markdown_file):
             for tier_0_asset in tier_0_assets:
                 # Build hyperlink
                 asset_name_anchor = tier_0_asset['assetName'].lower().replace(' ', '-')
-                documentation_link = f"{documentation_uri}#{asset_name_anchor}"
                 upstream_link = f"{upstream_uri}#{asset_name_anchor}"
                 # Build Markdown content
-                name = f"[{tier_0_asset['assetName']}]({documentation_link})"
-                type = f"[{tier_0_asset['assetType']}]({upstream_link})" if tier_0_asset['assetType'] == 'Built-in' else {tier_0_asset['assetType']}
+                name = f"[{tier_0_asset['assetName']}]({upstream_link})" if tier_0_asset['assetType'] == 'Built-in' else {tier_0_asset['assetName']}
+                type = tier_0_asset['assetType']
                 path_type = tier_0_asset['pathType']
                 shortest_path = tier_0_asset['shortestPath']
                 example = tier_0_asset['example']
@@ -438,11 +427,10 @@ def convert_msgraph_json_to_markdown(msgraph_json_file, msgraph_markdown_file):
             for tier_1_asset in tier_1_assets:
                 # Build hyperlink
                 asset_name_anchor = tier_1_asset['assetName'].lower().replace(' ', '-')
-                documentation_link = f"{documentation_uri}#{asset_name_anchor}"
                 upstream_link = f"{upstream_uri}#{asset_name_anchor}"
                 # Build Markdown content
-                name = f"[{tier_1_asset['assetName']}]({documentation_link})"
-                type = f"[{tier_1_asset['assetType']}]({upstream_link})" if tier_1_asset['assetType'] == 'Built-in' else {tier_1_asset['assetType']}
+                name = f"[{tier_1_asset['assetName']}]({upstream_link})" if tier_1_asset['assetType'] == 'Built-in' else {tier_1_asset['assetName']}
+                type = tier_1_asset['assetType']
                 # Build line
                 line = f"\n| {name} | {type} |"
                 new_tier_1_content += line
@@ -465,11 +453,10 @@ def convert_msgraph_json_to_markdown(msgraph_json_file, msgraph_markdown_file):
             for tier_2_asset in tier_2_assets:
                 # Build hyperlink
                 asset_name_anchor = tier_2_asset['assetName'].lower().replace(' ', '-')
-                documentation_link = f"{documentation_uri}#{asset_name_anchor}"
                 upstream_link = f"{upstream_uri}#{asset_name_anchor}"
                 # Build Markdown content
-                name = f"[{tier_2_asset['assetName']}]({documentation_link})"
-                type = f"[{tier_2_asset['assetType']}]({upstream_link})" if tier_2_asset['assetType'] == 'Built-in' else {tier_2_asset['assetType']}
+                name = f"[{tier_2_asset['assetName']}]({upstream_link})" if tier_2_asset['assetType'] == 'Built-in' else {tier_2_asset['assetName']}
+                type = tier_2_asset['assetType']
                 # Build line
                 line = f"\n| {name} | {type} |"
                 new_tier_2_content += line
