@@ -9,20 +9,24 @@
          convert-markdown-to-json converts roles and permissions already categorized in specific tiers from Markdown to JSON.
 
     Requirements:
-        - A service principal with the following granted MS Graph application permissions:
-            1. 'RoleManagement.Read.Directory' (to read Entra role definitions)
-            2. 'Application.Read.All' (to read the definitions of application permissions)
-        - Valid access tokens for ARM and MS Graph are expected to be available to convert-markdown-to-json via the following environment variables:
+        - A service principal with the following access:
+            1. Granted application permissions in MS Graph:
+                a. 'RoleManagement.Read.Directory' (to read Entra role definitions)
+                b. 'Application.Read.All' (to read the definitions of application permissions)
+            2. Granted Azure role actions on the Tenant Root Management Group:
+                a. Microsoft.Authorization/roleAssignments/read
+                b. Microsoft.Authorization/roleDefinitions/read
+                c. Microsoft.Management/managementGroups/read
+                d. Microsoft.Resources/subscriptions/read
+                e. Microsoft.Resources/subscriptions/resourceGroups/read
+                f. Microsoft.Resources/subscriptions/resourceGroups/resources/read
+        - Valid access tokens for ARM and MS Graph are expected to be available to AzTierWatcher via the following environment variables:
             - 'ARM_ACCESS_TOKEN'
             - 'MSGRAPH_ACCESS_TOKEN'
 
-    Note 1:
+    Note:
         During the conversion to JSON, tiered roles and permissions are enriched with their definition Ids, which need to be retrieved
         from the MS Graph and ARM APIs.
-    
-    Note 2:
-        In a tenant with a default configuration, service principals have permissions to read Azure role definitions by default.
-        Therefore, the service principal should not require any additional Azure permission.
 
 """
 import json
@@ -30,20 +34,185 @@ import os
 import re
 import requests
 import sys
+import time
+import uuid
 
 
-def get_azure_role_definitions_from_arm(token):
+def send_batch_request_to_arm(token, batch_requests):
     """
-        Retrieves all Azure role definitions from ARM.
+        Sends the passed batch requests to ARM, while handling pagination and throttling to return a complete response.
+
+        Note:
+            The batch requests are limited to 500 requests per batch, as per the ARM API documentation.
+        
+        Args:
+            token(str): a valid access token for ARM
+            batch_requests(list(dict)): list of batch requests to send to ARM
+
+        Returns:
+            list(dict): list of responses from ARM
+    
+    """
+    batch_request_limit = 500
+    limited_batch_requests = [batch_requests[i:i + batch_request_limit] for i in range(0, len(batch_requests), batch_request_limit)]
+    complete_response = []
+
+    for limited_batch_request in limited_batch_requests:
+        endpoint = 'https://management.azure.com/batch?api-version=2021-04-01'
+        headers = {'Authorization': f"Bearer {token}"}
+        body = { 
+            'requests': limited_batch_request
+        }
+
+        http_response = requests.post(endpoint, headers = headers, json = body)
+
+        if http_response.status_code != 200 and http_response.status_code != 202:
+            return None
+
+        redirect_header = 'Location'
+        retry_header = 'Retry-After'
+
+        if redirect_header not in http_response.headers:
+            # The response is not paginated
+            responses = http_response.json()['responses']
+            return responses
+
+        # The response is paginated
+        retry_after_x_seconds = int(http_response.headers.get(retry_header))
+        time.sleep(retry_after_x_seconds)
+        endpoint = http_response.headers.get(redirect_header)
+        headers = {'Authorization': f"Bearer {token}"}
+        http_response = requests.get(endpoint, headers = headers)
+        
+        if http_response.status_code != 200 and http_response.status_code != 202:
+            return None
+
+        paginated_response = http_response.json()['value']
+        complete_response = paginated_response
+        test = http_response.json()
+        next_page = http_response.json()['nextLink'] if 'nextLink' in http_response.json() else ''
+
+        while next_page:
+            http_response = requests.get(next_page, headers = headers)
+
+            if http_response.status_code != 200 and http_response.status_code != 202:
+                return None
+
+            paginated_response = http_response.json()['value']
+            next_page = http_response.json()['nextLink'] if 'nextLink' in http_response.json() else ''
+            complete_response += paginated_response
+
+    return complete_response
+
+
+def get_resource_id_of_higher_scopes_from_arm(token):
+    """
+        Retrieves the resource Id of the following "higher" scopes that the passed token has access to:
+            - Management Groups
+            - Subscriptions
+            - Resource groups
+
+        Args:
+            str: a valid access token for ARM
+
+        Returns:
+            list(str): list of resource Ids for all scopes that the token has access to
+
+    """
+    all_scopes = []
+
+    # Get Management groups and Subscriptions
+    batch_requests = [
+        {
+            "httpMethod": "GET",
+            "url": "https://management.azure.com/providers/Microsoft.Management/managementGroups?api-version=2021-04-01"
+        },
+        {
+            "httpMethod": "GET",
+            "url": "https://management.azure.com/subscriptions?api-version=2021-04-01"
+        }
+    ]
+
+    http_responses = send_batch_request_to_arm(token, batch_requests)
+
+    if http_responses is None:
+        print('FATAL ERROR - The Azure scopes could not be retrieved from ARM.')
+        exit()
+
+    mg_responses = http_responses[0]['content']['value']
+    mg_resource_ids = [response['id'] for response in mg_responses]
+    subscription_responses = http_responses[1]['content']['value']
+    subscription_resource_ids = [response['id'] for response in subscription_responses]
+
+    # Get Resource groups
+    batch_requests = []
+
+    for subscription_resource_id in subscription_resource_ids:
+        batch_requests.append({
+            "name": str(uuid.uuid4()),
+            "httpMethod": "GET",
+            "url": f"https://management.azure.com{subscription_resource_id}/resourceGroups?api-version=2021-04-01"
+        })
+
+    http_responses = send_batch_request_to_arm(token, batch_requests)
+    
+    if http_responses is None:
+        print('FATAL ERROR - The Azure scopes could not be retrieved from ARM.')
+        exit()
+
+    rg_responses = sum([response['content']['value'] for response in http_responses], [])
+    rg_resource_ids = [response['id'] for response in rg_responses]
+
+    # Merge all scopes
+    all_scopes = mg_resource_ids + subscription_resource_ids + rg_resource_ids
+    return subscription_resource_ids
+
+
+def get_custom_azure_role_definitions_from_arm(token):
+    """
+        Retrieves custom Azure role definitions from ARM.
 
         Args:
             token(str): a valid access token for ARM
 
         Returns:
-            list(str): list of role definitions
+            list(str): list of custom role definitions
+    """
+    batch_requests = []
+    scope = get_resource_id_of_higher_scopes_from_arm(token)
+
+    for resource_id in scope:
+        batch_requests.append({
+            "httpMethod": "GET",
+            "name": str(uuid.uuid4()),
+            "url": f"https://management.azure.com{resource_id}/providers/Microsoft.Authorization/roleDefinitions?$filter=type eq 'CustomRole'&api-version=2022-04-01"
+        })
+
+    http_responses = send_batch_request_to_arm(token, batch_requests)
+
+    if http_responses is None:
+        print('FATAL ERROR - The assigned Azure role definition could not be retrieved from ARM.')
+        exit()
+ 
+    role_definitions = sum([response['content']['value'] for response in http_responses], [])
+    unique_role_definition_ids = set()
+    unique_role_definitions = [role_definition for role_definition in role_definitions if role_definition['name'] not in unique_role_definition_ids and not unique_role_definition_ids.add(role_definition['name'])]
+
+    return unique_role_definitions
+
+
+def get_built_in_azure_role_definitions_from_arm(token):
+    """
+        Retrieves built-in Azure role definitions from ARM.
+
+        Args:
+            token(str): a valid access token for ARM
+
+        Returns:
+            list(str): list of built-in role definitions
 
     """
-    endpoint = 'https://management.azure.com/providers/Microsoft.Authorization/roleDefinitions?api-version=2022-04-01'
+    endpoint = "https://management.azure.com/providers/Microsoft.Authorization/roleDefinitions?$filter=type eq 'BuiltInRole'&api-version=2022-04-01"
     headers = {'Authorization': f"Bearer {token}"}
     response = requests.get(endpoint, headers = headers)
 
@@ -115,6 +284,39 @@ def get_application_permission_definitions_from_graph(token):
     return response_content
 
 
+def standardize_markdown_asset_names(markdown_file):
+    """
+        Standardizes the asset names in the passed Markdown file by replacing them with hyperlinks.
+
+        Args:
+            markdown_file(str): the Markdown file containing asset names to standardize
+
+        Returns:
+            str: the updated Markdown content with standardized asset names
+    """
+    try:
+        with open(markdown_file, 'r+', encoding='utf-8') as file:
+            updated_content = []
+            content = file.readlines()
+            regex = r"^\| (?!Color|Azure role|Entra role|Application permission)([a-zA-Z- ]+) [^a-zA-Z]"
+            asset_pattern = re.compile(regex)
+
+            for line in content:
+                if asset_pattern.match(line):
+                    asset_name = asset_pattern.match(line).group(1).strip()
+                    hyperlinked_asset = f"[{asset_name}](#)"
+                    line = line.replace(asset_name, hyperlinked_asset)
+                                        
+                updated_content.append(line)
+
+            file.seek(0)
+            file.write(''.join(updated_content))
+
+    except FileNotFoundError:
+        print('FATAL ERROR - Standardizing the Markdown file has failed.')
+        exit()
+
+
 def convert_azure_markdown_to_json(azure_markdown_file, azure_json_file, azure_role_ids):
     """
         Converts and outputs the Azure roles tiering information located in the passed Markdown file to JSON.
@@ -149,7 +351,7 @@ def convert_azure_markdown_to_json(azure_markdown_file, azure_json_file, azure_r
                 asset_name = re.sub(regex, '', elements[0].split(']', 1)[0])
                 asset_name_key = asset_name.lower().replace(' ', '')
                 asset_id = azure_role_ids[asset_name_key] if asset_name_key in azure_role_ids.keys() else ''
-                asset_type = elements[1].strip()
+                asset_type = re.sub(regex, '', elements[1].split(']', 1)[0]).strip()
                 shortest_path = re.sub(regex, '', elements[2]).encode('ascii', 'ignore').decode().strip()
                 example = re.sub(regex, '', elements[3].strip())
                 json_role = {
@@ -170,7 +372,7 @@ def convert_azure_markdown_to_json(azure_markdown_file, azure_json_file, azure_r
                 asset_name = re.sub(regex, '', elements[0].split(']', 1)[0])
                 asset_name_key = asset_name.lower().replace(' ', '')
                 asset_id = azure_role_ids[asset_name_key] if asset_name_key in azure_role_ids.keys() else ''
-                asset_type = elements[1].strip()
+                asset_type = re.sub(regex, '', elements[1].split(']', 1)[0]).strip()
                 shortest_path = re.sub(regex, '', elements[2]).encode('ascii', 'ignore').decode().strip()
                 example = re.sub(regex, '', elements[3].strip())
                 json_role = {
@@ -191,7 +393,7 @@ def convert_azure_markdown_to_json(azure_markdown_file, azure_json_file, azure_r
                 asset_name = re.sub(regex, '', elements[0].split(']', 1)[0])
                 asset_name_key = asset_name.lower().replace(' ', '')
                 asset_id = azure_role_ids[asset_name_key] if asset_name_key in azure_role_ids else ''
-                asset_type = elements[1].strip()
+                asset_type = re.sub(regex, '', elements[1].split(']', 1)[0]).strip()
                 worst_case_scenario = re.sub(regex, '', elements[2].strip())
                 json_role = {
                     'tier': '2',
@@ -210,7 +412,7 @@ def convert_azure_markdown_to_json(azure_markdown_file, azure_json_file, azure_r
                 asset_name = re.sub(regex, '', elements[0].split(']', 1)[0])
                 asset_name_key = asset_name.lower().replace(' ', '')
                 asset_id = azure_role_ids[asset_name_key] if asset_name_key in azure_role_ids else ''
-                asset_type = elements[1].strip()
+                asset_type = re.sub(regex, '', elements[1].split(']', 1)[0]).strip()
                 worst_case_scenario = re.sub(regex, '', elements[2].strip())
                 json_role = {
                     'tier': '3',
@@ -262,9 +464,9 @@ def convert_entra_markdown_to_json(entra_markdown_file, entra_json_file, entra_r
                 asset_name = re.sub(regex, '', elements[0].split(']', 1)[0])
                 asset_name_key = asset_name.lower().replace(' ', '')
                 asset_id = entra_role_ids[asset_name_key] if asset_name_key in entra_role_ids.keys() else ''
-                asset_type = elements[1].strip()
+                asset_type = re.sub(regex, '', elements[1].split(']', 1)[0]).strip()
                 path_type = elements[2].strip()
-                known_shortest_path = re.sub(regex, '', elements[3]).encode('ascii', 'ignore').decode().strip()
+                shortest_path = re.sub(regex, '', elements[3]).encode('ascii', 'ignore').decode().strip()
                 example = re.sub(regex, '', elements[4].strip())
                 json_role = {
                     'tier': "0", 
@@ -272,7 +474,7 @@ def convert_entra_markdown_to_json(entra_markdown_file, entra_json_file, entra_r
                     'assetType': asset_type,
                     'assetName': asset_name, 
                     'pathType': path_type,
-                    'knownShortestPath': known_shortest_path,
+                    'shortestPath': shortest_path,
                     'example': example
                 }
                 json_roles.append(json_role)
@@ -285,7 +487,7 @@ def convert_entra_markdown_to_json(entra_markdown_file, entra_json_file, entra_r
                 asset_name = re.sub(regex, '', elements[0].split(']', 1)[0])
                 asset_name_key = asset_name.lower().replace(' ', '')
                 asset_id = entra_role_ids[asset_name_key] if asset_name_key in entra_role_ids else ''
-                asset_type = elements[1].strip()
+                asset_type = re.sub(regex, '', elements[1].split(']', 1)[0]).strip()
                 provides_full_access_to = re.sub(regex, '', elements[2].strip())
                 json_role = {
                     'tier': '1', 
@@ -304,7 +506,7 @@ def convert_entra_markdown_to_json(entra_markdown_file, entra_json_file, entra_r
                 asset_name = re.sub(regex, '', elements[0].split(']', 1)[0])
                 asset_name_key = asset_name.lower().replace(' ', '')
                 asset_id = entra_role_ids[asset_name_key] if asset_name_key in entra_role_ids else ''
-                asset_type = elements[1].strip()
+                asset_type = re.sub(regex, '', elements[1].split(']', 1)[0]).strip()
                 json_role = {
                     'tier': '2',
                     'id': asset_id,
@@ -355,9 +557,9 @@ def convert_msgraph_markdown_to_json(msgraph_markdown_file, msgraph_json_file, m
                 asset_name = re.sub(regex, '', elements[0].split(']', 1)[0])
                 asset_name_key = asset_name.lower().replace(' ', '')
                 asset_id = msgraph_permission_ids[asset_name_key] if asset_name_key in msgraph_permission_ids.keys() else ''
-                asset_type = elements[1].strip()
+                asset_type = re.sub(regex, '', elements[1].split(']', 1)[0]).strip()
                 path_type = elements[2].strip()
-                known_shortest_path = re.sub(regex, '', elements[3]).encode('ascii', 'ignore').decode().strip()
+                shortest_path = re.sub(regex, '', elements[3]).encode('ascii', 'ignore').decode().strip()
                 example = re.sub(regex, '', elements[4].strip())
                 json_permission = {
                     'tier': "0", 
@@ -365,7 +567,7 @@ def convert_msgraph_markdown_to_json(msgraph_markdown_file, msgraph_json_file, m
                     'assetType': asset_type,
                     'assetName': asset_name, 
                     'pathType': path_type,
-                    'knownShortestPath': known_shortest_path,
+                    'shortestPath': shortest_path,
                     'example': example
                 }
                 json_permissions.append(json_permission)
@@ -378,7 +580,7 @@ def convert_msgraph_markdown_to_json(msgraph_markdown_file, msgraph_json_file, m
                 asset_name = re.sub(regex, '', elements[0].split(']', 1)[0])
                 asset_name_key = asset_name.lower().replace(' ', '')
                 asset_id = msgraph_permission_ids[asset_name_key] if asset_name_key in msgraph_permission_ids else ''
-                asset_type = elements[1].strip()
+                asset_type = re.sub(regex, '', elements[1].split(']', 1)[0]).strip()
                 json_permission = {
                     'tier': '1', 
                     'id': asset_id,
@@ -395,7 +597,7 @@ def convert_msgraph_markdown_to_json(msgraph_markdown_file, msgraph_json_file, m
                 asset_name = re.sub(regex, '', elements[0].split(']', 1)[0])
                 asset_name_key = asset_name.lower().replace(' ', '')
                 asset_id = msgraph_permission_ids[asset_name_key] if asset_name_key in msgraph_permission_ids else ''
-                asset_type = elements[1].strip()
+                asset_type = re.sub(regex, '', elements[1].split(']', 1)[0]).strip()
                 json_permission = {
                     'tier': '2',
                     'id': asset_id,
@@ -445,9 +647,11 @@ if __name__ == "__main__":
 
     # Get all Azure roles from ARM
     azure_roles = {}
-    azure_role_definitions = get_azure_role_definitions_from_arm(arm_access_token)
+    built_in_azure_role_definitions = get_built_in_azure_role_definitions_from_arm(arm_access_token)
+    custom_azure_role_definitions = get_custom_azure_role_definitions_from_arm(arm_access_token)   
+    all_azure_role_definitions = built_in_azure_role_definitions + custom_azure_role_definitions
 
-    for azure_role_definition in azure_role_definitions:
+    for azure_role_definition in all_azure_role_definitions:
         id = azure_role_definition['name']
         name = azure_role_definition['properties']['roleName'].lower().replace(' ', '')
         azure_roles[name] = id
@@ -472,12 +676,15 @@ if __name__ == "__main__":
 
     # Convert Markdown content for Azure roles to JSON
     print (f"Converting: Azure roles")
+    standardize_markdown_asset_names(azure_roles_markdown_file)
     convert_azure_markdown_to_json(azure_roles_markdown_file, azure_roles_json_file, azure_roles)
 
     # Convert Markdown content for Entra roles to JSON
     print (f"Converting: Entra roles")
+    standardize_markdown_asset_names(entra_roles_markdown_file)
     convert_entra_markdown_to_json(entra_roles_markdown_file, entra_roles_json_file, entra_roles)
 
     # Convert Markdown content for MS Graph application permissions to JSON
     print (f"Converting: MS Graph application permissions")
+    standardize_markdown_asset_names(app_permissions_markdown_file)
     convert_msgraph_markdown_to_json(app_permissions_markdown_file, app_permissions_json_file, msgraph_app_permissions)
