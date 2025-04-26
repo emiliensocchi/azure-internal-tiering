@@ -194,7 +194,7 @@ def get_custom_azure_role_definitions_from_arm(token):
         print('FATAL ERROR - The assigned Azure role definition could not be retrieved from ARM.')
         exit()
  
-    role_definitions = sum([response['content']['value'] for response in http_responses], [])
+    role_definitions = sum([response['content']['value'] for response in http_responses if response['httpStatusCode'] == 200], [])
     unique_role_definition_ids = set()
     unique_role_definitions = [role_definition for role_definition in role_definitions if role_definition['name'] not in unique_role_definition_ids and not unique_role_definition_ids.add(role_definition['name'])]
 
@@ -305,7 +305,7 @@ def standardize_markdown_asset_names(markdown_file):
                 if asset_pattern.match(line):
                     asset_name = asset_pattern.match(line).group(1).strip()
                     hyperlinked_asset = f"[{asset_name}](#)"
-                    line = line.replace(asset_name, hyperlinked_asset)
+                    line = line.replace(asset_name, hyperlinked_asset, 1)
                                         
                 updated_content.append(line)
 
