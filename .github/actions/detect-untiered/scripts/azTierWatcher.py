@@ -78,9 +78,8 @@ def send_batch_request_to_arm(token, batch_requests):
             return responses
 
         # The response is paginated
-        #retry_after_x_seconds = http_response.headers.get(retry_header)
-        #time.sleep(retry_after_x_seconds)
-        time.sleep(5)
+        retry_after_x_seconds = int(http_response.headers.get(retry_header))
+        time.sleep(retry_after_x_seconds)
         endpoint = http_response.headers.get(redirect_header)
         headers = {'Authorization': f"Bearer {token}"}
         http_response = requests.get(endpoint, headers = headers)
@@ -326,8 +325,7 @@ def get_role_definition_id_of_eligible_azure_roles_within_scope_from_arm(token, 
 def get_all_azure_role_definitions_from_arm(token, role_definition_ids):
     """
         Retrieves the definition of all built-in and custom Azure roles with the passed definition Ids.
-        Note: 
-        
+
         Args:
             str: a valid access token for ARM
             role_definition_ids(list): list of role definition Ids to check for existing role assignments
