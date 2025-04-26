@@ -299,8 +299,9 @@ def run_sync_workflow(keep_local_changes, role_type, tiered_builtin_roles_from_a
 
         # Removed Azure roles
         removed_tiered_azure_roles = find_removed_assets(tiered_builtin_roles_from_aat, tiered_builtin_roles_from_local)
+        removed_tiered_built_in_azure_role = [role for role in removed_tiered_azure_roles if role['assetType'] == 'Built-in']   # Custom roles should always be preserved
 
-        for removed_azure_role in removed_tiered_azure_roles:
+        for removed_azure_role in removed_tiered_built_in_azure_role:
             removed_azure_role_id = removed_azure_role['id']
             tiered_all_roles_from_local = [role for role in tiered_all_roles_from_local if role['id'] != removed_azure_role_id]
 
@@ -327,7 +328,9 @@ def run_sync_workflow(keep_local_changes, role_type, tiered_builtin_roles_from_a
 
         # Removed Entra roles
         removed_tiered_entra_roles = find_removed_assets(tiered_builtin_roles_from_aat, tiered_builtin_roles_from_local)
-        for removed_role in removed_tiered_entra_roles:
+        removed_tiered_built_in_entra_role = [role for role in removed_tiered_entra_roles if role['assetType'] == 'Built-in']   # Custom roles should always be preserved
+
+        for removed_role in removed_tiered_built_in_entra_role:
             removed_role_id = removed_role['id']
             tiered_all_entra_roles_from_local = [role for role in tiered_all_entra_roles_from_local if role['id'] != removed_role_id]
     else:
@@ -380,10 +383,9 @@ if __name__ == "__main__":
     
     # Update locally-tiered Azure roles with the latest upstream version from AAT
     tiered_all_azure_roles_from_local = read_tiered_json_file(azure_roles_tier_file)
-    tiered_builtin_azure_roles_from_local = [role for role in tiered_all_azure_roles_from_local if role['assetType'] == 'Built-in']
     tiered_builtin_azure_roles_from_aat = get_tiered_builtin_azure_role_definitions_from_aat()
 
-    updated_tiered_all_azure_roles_from_local = run_sync_workflow(keep_local_changes, 'azure', tiered_builtin_azure_roles_from_aat, tiered_builtin_azure_roles_from_local)
+    updated_tiered_all_azure_roles_from_local = run_sync_workflow(keep_local_changes, 'azure', tiered_builtin_azure_roles_from_aat, tiered_all_azure_roles_from_local[:])
     has_aat_been_updated = False if (updated_tiered_all_azure_roles_from_local == tiered_all_azure_roles_from_local) else True
 
     if has_aat_been_updated:
@@ -400,10 +402,9 @@ if __name__ == "__main__":
 
     # Update locally-tiered Entra roles with the latest upstream version from AAT
     tiered_all_entra_roles_from_local = read_tiered_json_file(entra_roles_tier_file)
-    tiered_builtin_entra_roles_from_local = [role for role in tiered_all_entra_roles_from_local if role['assetType'] == 'Built-in']
     tiered_builtin_entra_roles_from_aat = get_tiered_builtin_entra_role_definitions_from_aat()
 
-    updated_tiered_all_entra_roles_from_local = run_sync_workflow(keep_local_changes, 'entra', tiered_builtin_entra_roles_from_aat, tiered_builtin_entra_roles_from_local)
+    updated_tiered_all_entra_roles_from_local = run_sync_workflow(keep_local_changes, 'entra', tiered_builtin_entra_roles_from_aat, tiered_all_entra_roles_from_local[:])
     has_aat_been_updated = False if (updated_tiered_all_entra_roles_from_local == tiered_all_entra_roles_from_local) else True
 
     if has_aat_been_updated:
