@@ -54,7 +54,7 @@ def send_batch_request_to_arm(token, batch_requests):
     
     """
     # Throttle limits per second
-    throttle_bucket_size = 250
+    throttle_bucket_size = 200
     throttle_refill_rate = 25
 
     complete_response = []
