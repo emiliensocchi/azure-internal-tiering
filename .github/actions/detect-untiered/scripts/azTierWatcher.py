@@ -42,8 +42,8 @@ def send_batch_request_to_arm(token, batch_requests):
     """
         Sends the passed batch requests to ARM, while handling pagination and throttling to return a complete response.
 
-        Note:
-            The batch requests are limited to 500 requests per batch, as per the ARM API documentation.
+        More info:
+            https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/request-limits-and-throttling#migrating-to-regional-throttling-and-token-bucket-algorithm
         
         Args:
             token(str): a valid access token for ARM
@@ -53,15 +53,18 @@ def send_batch_request_to_arm(token, batch_requests):
             list(dict): list of responses from ARM
     
     """
-    batch_request_limit = 500
-    limited_batch_requests = [batch_requests[i:i + batch_request_limit] for i in range(0, len(batch_requests), batch_request_limit)]
-    complete_response = []
+    # Throttle limits per second
+    throttle_bucket_size = 250
+    throttle_refill_rate = 25
 
-    for limited_batch_request in limited_batch_requests:
+    complete_response = []
+    bucketted_batch_requests = [batch_requests[i:i + throttle_bucket_size] for i in range(0, len(batch_requests), throttle_bucket_size)]
+    
+    for bucketted_batch_request in bucketted_batch_requests:
         endpoint = 'https://management.azure.com/batch?api-version=2021-04-01'
         headers = {'Authorization': f"Bearer {token}"}
         body = { 
-            'requests': limited_batch_request
+            'requests': bucketted_batch_request
         }
 
         http_response = requests.post(endpoint, headers = headers, json = body)
@@ -69,6 +72,11 @@ def send_batch_request_to_arm(token, batch_requests):
         if http_response.status_code != 200 and http_response.status_code != 202:
             return None
 
+        # Avoid throttling
+        time_to_full_throttle_bucket = len(bucketted_batch_request) / throttle_refill_rate
+        time.sleep(time_to_full_throttle_bucket)
+
+        # Check if the response is paginated
         redirect_header = 'Location'
         retry_header = 'Retry-After'
 
@@ -491,6 +499,7 @@ def find_added_assets(extended_assets, base_assets):
 
     """
     added_assets = []
+    extended_asset_names = [asset['name'] for asset in extended_assets if asset['id'] == added_asset_id]
     extended_asset_ids = [asset['id'] for asset in extended_assets]
     base_asset_ids = [asset['id'] for asset in base_assets]
     added_asset_ids = [asset_id for asset_id in extended_asset_ids if asset_id not in base_asset_ids]
@@ -500,10 +509,12 @@ def find_added_assets(extended_assets, base_assets):
         date = now.strftime("%Y-%m-%d")
 
         for added_asset_id in added_asset_ids:
-            asset = [asset for asset in extended_assets if asset['id'] == added_asset_id][0]
-            enriched_asset = { 'date': date }
-            enriched_asset.update(asset)
-            added_assets.append(enriched_asset)
+            added_asset = [asset for asset in extended_assets if asset['id'] == added_asset_id][0]
+
+            if added_asset['name'] not in extended_asset_names:
+                enriched_asset = { 'date': date }
+                enriched_asset.update(added_asset)
+                added_assets.append(enriched_asset)
 
     return added_assets
 
