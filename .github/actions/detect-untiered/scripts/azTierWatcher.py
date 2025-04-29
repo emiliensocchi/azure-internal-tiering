@@ -284,7 +284,11 @@ def get_role_definition_id_of_active_azure_roles_within_scope_from_arm(token, sc
         print('FATAL ERROR - The active Azure role definition Ids could not be retrieved from ARM.')
         exit()
  
-    assignment_responses = sum([response['content']['value'] for response in http_responses], [])
+    #assignment_responses = sum([response['content']['value'] for response in http_responses], [])
+
+    for response in http_responses:
+        assignment_responses += response['content']['value']
+
     role_definition_ids = [response['properties']['roleDefinitionId'] for response in assignment_responses]    
     unique_role_ids = set()
     unique_role_definition_ids = [role_definition_id for role_definition_id in role_definition_ids if role_definition_id.split("/")[-1] not in unique_role_ids and not unique_role_ids.add(role_definition_id.split("/")[-1])]
@@ -322,7 +326,11 @@ def get_role_definition_id_of_eligible_azure_roles_within_scope_from_arm(token, 
         print('FATAL ERROR - The eligible Azure role definition Ids could not be retrieved from ARM.')
         exit()
  
-    assignment_responses = sum([response['content']['value'] for response in http_responses], [])
+    #assignment_responses = sum([response['content']['value'] for response in http_responses], [])
+
+    for response in http_responses:
+        assignment_responses += response['content']['value']
+
     role_definition_ids = [response['properties']['roleDefinitionId'] for response in assignment_responses]
     unique_role_ids = set()
     unique_role_definition_ids = [role_definition_id for role_definition_id in role_definition_ids if role_definition_id.split("/")[-1] not in unique_role_ids and not unique_role_ids.add(role_definition_id.split("/")[-1])]
