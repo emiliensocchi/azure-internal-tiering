@@ -53,61 +53,86 @@ def send_batch_request_to_arm(token, batch_requests):
             list(dict): list of responses from ARM
     
     """
-    # Throttle limits per second
-    throttle_bucket_size = 200
-    throttle_refill_rate = 25
-
     complete_response = []
-    bucketted_batch_requests = [batch_requests[i:i + throttle_bucket_size] for i in range(0, len(batch_requests), throttle_bucket_size)]
+
+    # Divide the passed batch into smaller chunks to stay within API limits
+    batch_request_size_limit = 500  
+    limited_batch_requests = [batch_requests[i:i + batch_request_size_limit] for i in range(0, len(batch_requests), batch_request_size_limit)]
     
-    for bucketted_batch_request in bucketted_batch_requests:
-        endpoint = 'https://management.azure.com/batch?api-version=2021-04-01'
-        headers = {'Authorization': f"Bearer {token}"}
-        body = { 
-            'requests': bucketted_batch_request
-        }
-
-        http_response = requests.post(endpoint, headers = headers, json = body)
-
-        if http_response.status_code != 200 and http_response.status_code != 202:
-            return None
-
-        # Avoid throttling
-        time_to_full_throttle_bucket = len(bucketted_batch_request) / throttle_refill_rate
-        time.sleep(time_to_full_throttle_bucket)
-
-        # Check if the response is paginated
-        redirect_header = 'Location'
-        retry_header = 'Retry-After'
-
-        if redirect_header not in http_response.headers:
-            # The response is not paginated
-            responses = http_response.json()['responses']
-            return responses
-
-        # The response is paginated
-        retry_after_x_seconds = int(http_response.headers.get(retry_header))
-        time.sleep(retry_after_x_seconds)
-        endpoint = http_response.headers.get(redirect_header)
-        headers = {'Authorization': f"Bearer {token}"}
-        http_response = requests.get(endpoint, headers = headers)
+    for limited_batch_request in limited_batch_requests:
+        remaining_requests = limited_batch_request
         
-        if http_response.status_code != 200 and http_response.status_code != 202:
-            return None
+        # Loop until no request is throttled
+        while remaining_requests:
+            # Create the batch request
+            endpoint = 'https://management.azure.com/batch?api-version=2021-04-01'
+            headers = {'Authorization': f"Bearer {token}"}
+            body = { 
+                'requests': remaining_requests
+            }
 
-        paginated_response = http_response.json()['value']
-        complete_response = paginated_response
-        next_page = http_response.json()['nextLink'] if 'nextLink' in http_response.json() else ''
-
-        while next_page:
-            http_response = requests.get(next_page, headers = headers)
+            http_response = requests.post(endpoint, headers = headers, json = body)
 
             if http_response.status_code != 200 and http_response.status_code != 202:
                 return None
 
-            paginated_response = http_response.json()['value']
-            next_page = http_response.json()['nextLink'] if 'nextLink' in http_response.json() else ''
-            complete_response += paginated_response
+            # Check if the response is paginated
+            all_responses = []
+            redirect_header = 'Location'
+            retry_header = 'Retry-After'
+
+            if redirect_header in http_response.headers:
+                # The response is paginated - wait for all individual requests in the batch to finish
+                #retry_after_x_seconds = int(http_response.headers.get(retry_header))
+                #time.sleep(retry_after_x_seconds)
+                time.sleep(5)   # Seems acceptable and faster than the Retry-After header typically set to 20 seconds
+                page = http_response.headers.get(redirect_header)
+                http_response = requests.get(page, headers = headers)
+                
+                if http_response.status_code != 200 and http_response.status_code != 202:
+                    return None
+
+                paginated_response = http_response.json()['value']
+                all_responses = paginated_response
+                next_page = http_response.json()['nextLink'] if 'nextLink' in http_response.json() else ''
+
+                # Get paginated reponse until no more pages
+                while next_page:
+                    http_response = requests.get(next_page, headers = headers)
+
+                    if http_response.status_code != 200 and http_response.status_code != 202:
+                        return None
+
+                    paginated_response = http_response.json()['value']
+                    next_page = http_response.json()['nextLink'] if 'nextLink' in http_response.json() else ''
+                    all_responses += paginated_response
+            else:
+                # The response is not paginated
+                all_responses = http_response.json()['responses']
+
+            # Identify throttled requests
+            successful_responses = [response for response in all_responses if response['httpStatusCode'] == 200 or response['httpStatusCode'] == 202]
+            complete_response += successful_responses
+            throttled_responses = [response for response in all_responses if response['httpStatusCode'] == 429]
+
+            if not throttled_responses:
+                break
+
+            # Collect throttled requests
+            remaining_requests = []
+            for throttled_response in throttled_responses:
+                throttled_response_name = throttled_response['name']
+                throttled_request = next((r for r in limited_batch_request if r['name'] == throttled_response_name), None)
+                remaining_requests.append(throttled_request)
+
+            # Verify if a Rety-After header has been served and sleep for the specified time
+            last_throttled_response = throttled_responses[-1]
+            last_throttled_headers = last_throttled_response['headers']
+
+            if 'Retry-After' in last_throttled_headers:
+                wait_seconds = int(last_throttled_response['headers']['Retry-After'])
+                time.sleep(wait_seconds)
+        # End of While
 
     return complete_response
 
@@ -284,11 +309,7 @@ def get_role_definition_id_of_active_azure_roles_within_scope_from_arm(token, sc
         print('FATAL ERROR - The active Azure role definition Ids could not be retrieved from ARM.')
         exit()
  
-    #assignment_responses = sum([response['content']['value'] for response in http_responses], [])
-
-    for response in http_responses:
-        assignment_responses += response['content']['value']
-
+    assignment_responses = sum([response['content']['value'] for response in http_responses], [])
     role_definition_ids = [response['properties']['roleDefinitionId'] for response in assignment_responses]    
     unique_role_ids = set()
     unique_role_definition_ids = [role_definition_id for role_definition_id in role_definition_ids if role_definition_id.split("/")[-1] not in unique_role_ids and not unique_role_ids.add(role_definition_id.split("/")[-1])]
@@ -326,11 +347,7 @@ def get_role_definition_id_of_eligible_azure_roles_within_scope_from_arm(token, 
         print('FATAL ERROR - The eligible Azure role definition Ids could not be retrieved from ARM.')
         exit()
  
-    #assignment_responses = sum([response['content']['value'] for response in http_responses], [])
-
-    for response in http_responses:
-        assignment_responses += response['content']['value']
-
+    assignment_responses = sum([response['content']['value'] for response in http_responses], [])
     role_definition_ids = [response['properties']['roleDefinitionId'] for response in assignment_responses]
     unique_role_ids = set()
     unique_role_definition_ids = [role_definition_id for role_definition_id in role_definition_ids if role_definition_id.split("/")[-1] not in unique_role_ids and not unique_role_ids.add(role_definition_id.split("/")[-1])]
@@ -507,7 +524,7 @@ def find_added_assets(extended_assets, base_assets):
 
     """
     added_assets = []
-    extended_asset_names = [asset['name'] for asset in extended_assets if asset['id'] == added_asset_id]
+    extended_asset_names = [asset['name'] for asset in extended_assets]
     extended_asset_ids = [asset['id'] for asset in extended_assets]
     base_asset_ids = [asset['id'] for asset in base_assets]
     added_asset_ids = [asset_id for asset_id in extended_asset_ids if asset_id not in base_asset_ids]
