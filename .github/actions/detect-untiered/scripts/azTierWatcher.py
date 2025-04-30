@@ -83,8 +83,8 @@ def send_batch_request_to_arm(token, batch_requests):
 
             if redirect_header in http_response.headers:
                 # The response is paginated - wait for all individual requests in the batch to finish
-                retry_after_x_seconds = int(http_response.headers.get(retry_header))
-                time.sleep(retry_after_x_seconds)
+                #retry_after_x_seconds = int(http_response.headers.get(retry_header))
+                #time.sleep(retry_after_x_seconds)
                 time.sleep(5)   # Seems acceptable and faster than the Retry-After header typically set to 20 seconds
                 page = http_response.headers.get(redirect_header)
                 http_response = requests.get(page, headers = headers)
