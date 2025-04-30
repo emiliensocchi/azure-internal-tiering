@@ -2,6 +2,11 @@ name: Convert JSON to Markdown
 
 on:
   workflow_dispatch: {}
+  workflow_run:
+      workflows: [ "Sync from upstream" ]
+      types: [ completed ]
+      branches:
+          - "main"
   push:
     branches: [ "main" ]
     paths:
